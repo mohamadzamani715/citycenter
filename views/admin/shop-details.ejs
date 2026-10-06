@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="<%= csrfToken %>">
+  <title>جزئیات مغازه</title>
+  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>پنل مدیریت پاساژ سیتی سنتر چهارباغ</h1>
+      <button id="toggleTheme" class="btn-theme toggle-theme-btn" title="تغییر تم">
+        <span class="theme-icon">🌙</span>
+      </button>
+    </div>
+
+    <nav class="navbar">
+      <ul>
+      <li><a href="/admin/dashboard">داشبورد</a></li>
+      <li><a href="/admin/users">مدیریت مغازه‌ها</a></li>
+      <li><a href="/admin/accounting">گزارش‌ها</a></li>
+      <li><a href="/admin/settings">تنظیمات</a></li>
+    </ul>
+      <button class="btn btn-danger" data-action="logout">خروج</button>
+    </nav>
+
+    <div class="content">
+      <button class="btn-back" data-action="navigate" data-href="/admin/dashboard">بازگشت به لیست</button>
+      
+      <h2>جزئیات مغازه: <%= shop.shop_name %></h2>
+      <div class="content-section">
+        <p><strong>نام مالک:</strong> <%= shop.first_name %> <%= shop.last_name %></p>
+        <p><strong>کد ملی:</strong> <%= shop.national_code %></p>
+        <p><strong>پلاک:</strong> <%= shop.plaque %></p>
+        <p><strong>تلفن:</strong> <%= shop.phone %></p>
+      </div>
+
+      <h3>تاریخچه شارژها</h3>
+      <table id="charges-table">
+        <thead>
+          <tr>
+            <th>ماه شارژ</th>
+            <th>مبلغ (تومان)</th>
+            <th>وضعیت</th>
+            <th>تاریخ پرداخت</th>
+            <th>کد پیگیری</th>
+            <th>عملیات</th>
+          </tr>
+        </thead>
+        <tbody id="charges-tbody">
+          <% charges.forEach(charge => { %>
+            <% 
+              let chargeMonth = '-'; 
+              if (charge && charge.charge_month) { 
+                const d = new Date(charge.charge_month); 
+                if (!isNaN(d.getTime())) { 
+                  chargeMonth = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(d); 
+                } 
+              } 
+            %>
+            <% 
+              let paidDate = '-'; 
+              if (charge && charge.paid_at) { 
+                const d = new Date(charge.paid_at); 
+                if (!isNaN(d.getTime())) { 
+                  paidDate = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(d); 
+                } 
+              } 
+            %>
+            <tr id="charge-<%= charge.id %>" data-charge-id="<%= charge.id %>">
+              <td><%= chargeMonth %></td>
+              <td>
+                <span class="editable-amount" data-charge-id="<%= charge.id %>" data-amount="<%= charge.amount %>">
+                  <%= charge.amount.toLocaleString('fa-IR') %>
+                </span>
+              </td>
+              <td>
+                <span class="status-badge status-<%= charge.status %>">
+                  <% if (charge.status === 'paid') { %>پرداخت شده<% } 
+                    else if (charge.status === 'pending') { %>در انتظار<% } 
+                    else { %>پرداخت نشده<% } %>
+                </span>
+                <% if (charge.rejected_reason) { %>
+                  <div class="rejection-reason">رد شده: <%= charge.rejected_reason %></div>
+                <% } %>
+                <button class="btn btn-small btn-primary toggle-status" data-charge-id="<%= charge.id %>" data-current-status="<%= charge.status %>">
+                  تغییر
+                </button>
+              </td>
+              <td><%= paidDate %></td>
+              <td><%= charge.transaction_code || '-' %></td>
+              <td>
+                <% if (charge.receipt) { %>
+                  <button class="btn btn-small btn-view-receipt view-receipt-btn" data-compressed="/admin/receipts/<%= shop.id %>/<%= charge.id %>?thumb=1" data-original="/admin/receipts/<%= shop.id %>/<%= charge.id %>">
+                    مشاهده رسید
+                  </button>
+                <% } %>
+                <% if (charge.status === 'pending') { %>
+                  <button class="btn btn-small btn-approve approve-btn" data-charge-id="<%= charge.id %>">
+                    تأیید
+                  </button>
+                  <button class="btn btn-small btn-reject reject-btn" data-charge-id="<%= charge.id %>">
+                    رد
+                  </button>
+                <% } %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Receipt Modal -->
+  <div id="receiptModal" class="modal">
+    <div class="modal-content">
+      <h3>رسید پرداخت</h3>
+      <img id="receiptImage" src="" alt="رسید پرداخت">
+      <p><a id="downloadOriginal" href="" target="_blank">دانلود نسخه اصلی</a></p>
+      <button class="btn-close" data-close-modal="receiptModal">بستن</button>
+    </div>
+  </div>
+
+  <script src="/js/main.js" nonce="<%= cspNonce %>"></script>
+  <script nonce="<%= cspNonce %>">
+    function getCsrfToken() {
+      return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    }
+
+    function updateChargeRow(chargeId, data) {
+      const row = document.getElementById(`charge-${chargeId}`);
+      if (!row) return;
+
+      const statusSpan = row.querySelector('.status-badge');
+      if (statusSpan) {
+        statusSpan.className = `status-badge status-${data.status}`;
+        if (data.status === 'paid') {
+          statusSpan.textContent = 'پرداخت شده';
+        } else if (data.status === 'pending') {
+          statusSpan.textContent = 'در انتظار';
+        } else {
+          statusSpan.textContent = 'پرداخت نشده';
+        }
+      }
+
+      const paidAtCell = row.cells[3];
+      const transactionCodeCell = row.cells[4];
+      const actionsCell = row.cells[5];
+      const statusCell = row.cells[2];
+
+      if (data.paid_at) {
+        const paidAtDate = new Date(data.paid_at);
+        if (!isNaN(paidAtDate.getTime())) {
+          paidAtCell.textContent = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+          }).format(paidAtDate);
+        }
+        transactionCodeCell.textContent = data.transaction_code;
+      } else {
+        paidAtCell.textContent = '-';
+        transactionCodeCell.textContent = '-';
+      }
+
+      // Remove approve/reject buttons if status is not pending
+      if (data.status !== 'pending') {
+        const approveBtn = actionsCell.querySelector('.approve-btn');
+        const rejectBtn = actionsCell.querySelector('.reject-btn');
+        if (approveBtn) approveBtn.remove();
+        if (rejectBtn) rejectBtn.remove();
+      }
+
+      if (data.rejected_reason) {
+        let reasonDiv = statusCell.querySelector('.rejection-reason');
+        if (!reasonDiv) {
+          reasonDiv = document.createElement('div');
+          reasonDiv.className = 'rejection-reason';
+          statusCell.appendChild(reasonDiv);
+        }
+        reasonDiv.textContent = `رد شده: ${data.rejected_reason}`;
+      } else {
+        const reasonDiv = statusCell.querySelector('.rejection-reason');
+        if (reasonDiv) reasonDiv.remove();
+      }
+    }
+
+    // Handle inline amount editing
+    document.getElementById('charges-tbody').addEventListener('click', async (e) => {
+      if (e.target.classList.contains('editable-amount')) {
+        const span = e.target;
+        const chargeId = span.dataset.chargeId;
+        const currentAmount = span.dataset.amount;
+        
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.value = currentAmount;
+        input.style.width = '150px';
+        input.dataset.originalValue = currentAmount;
+        
+        span.replaceWith(input);
+        input.focus();
+        input.select();
+        
+        const save = async () => {
+          const newAmount = Number(input.value);
+          
+          const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+          
+          try {
+            const response = await fetch(`/admin/charges/${chargeId}/amount`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+              },
+              body: JSON.stringify({ amount: newAmount })
+            });
+            
+            if (response.status === 401) {
+              alert('نشست شما منقضی شده است. لطفاً دوباره وارد شوید.');
+              window.location.href = '/login';
+              return;
+            }
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+              span.dataset.amount = newAmount;
+              span.textContent = newAmount.toLocaleString('fa-IR');
+              input.replaceWith(span);
+            } else {
+              alert(result.message || 'خطا در به‌روزرسانی مبلغ');
+              input.replaceWith(span);
+            }
+          } catch (err) {
+            console.error(err);
+            alert('خطا در به‌روزرسانی مبلغ');
+            input.replaceWith(span);
+          }
+        };
+        
+        input.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            save();
+          }
+        });
+        
+        input.addEventListener('blur', () => {
+          save();
+        });
+      }
+    });
+
+    // Handle status toggle
+    document.getElementById('charges-tbody').addEventListener('click', async (e) => {
+      if (e.target.classList.contains('toggle-status')) {
+        const btn = e.target;
+        const chargeId = btn.dataset.chargeId;
+        const currentStatus = btn.dataset.currentStatus;
+        const newStatus = currentStatus === 'paid' ? 'unpaid' : 'paid';
+        
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        
+        try {
+          const response = await fetch(`/admin/charges/${chargeId}/status`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({ status: newStatus })
+          });
+          
+          if (response.status === 401) {
+            alert('نشست شما منقضی شده است. لطفاً دوباره وارد شوید.');
+            window.location.href = '/login';
+            return;
+          }
+          
+          const responseText = await response.text();
+          const contentType = response.headers.get('Content-Type');
+          let result;
+          
+          if (contentType && contentType.includes('application/json')) {
+            try {
+              result = JSON.parse(responseText);
+            } catch (parseErr) {
+              console.error('JSON parse error:', parseErr);
+              alert(`خطای سرور (کد ${response.status}):\n` + responseText);
+              return;
+            }
+          } else {
+            alert(`خطای سرور (کد ${response.status}):\n` + responseText);
+            return;
+          }
+          
+          if (response.ok) {
+            // Update toggle button dataset
+            btn.dataset.currentStatus = result.status;
+            // Call our unified update function
+            updateChargeRow(chargeId, result);
+          } else {
+            alert(`خطای سرور (کد ${response.status}):\n` + (result.message || JSON.stringify(result)));
+          }
+        } catch (err) {
+          console.error(err);
+          alert('خطا در تغییر وضعیت:\n' + err.message);
+        }
+      }
+    });
+
+    // Handle view receipt
+    document.getElementById('charges-tbody').addEventListener('click', async (e) => {
+      if (e.target.classList.contains('view-receipt-btn')) {
+        const btn = e.target;
+        const compressedPath = btn.dataset.compressed;
+        const originalPath = btn.dataset.original;
+        
+        document.getElementById('receiptImage').src = compressedPath;
+        document.getElementById('downloadOriginal').href = originalPath;
+        document.getElementById('receiptModal').classList.add('active');
+      }
+    });
+
+    // Handle approve receipt
+    document.getElementById('charges-tbody').addEventListener('click', async (e) => {
+      if (e.target.classList.contains('approve-btn')) {
+        const btn = e.target;
+        const chargeId = btn.dataset.chargeId;
+        
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        
+        try {
+          const response = await fetch(`/admin/charges/${chargeId}/approve`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': csrfToken
+            }
+          });
+          
+          if (response.status === 401) {
+            alert('نشست شما منقضی شده است. لطفاً دوباره وارد شوید.');
+            window.location.href = '/login';
+            return;
+          }
+          
+          const responseText = await response.text();
+          const contentType = response.headers.get('Content-Type');
+          let result;
+          
+          if (contentType && contentType.includes('application/json')) {
+            try {
+              result = JSON.parse(responseText);
+            } catch (parseErr) {
+              console.error('JSON parse error:', parseErr);
+              alert(`خطای سرور (کد ${response.status}):\n` + responseText);
+              return;
+            }
+          } else {
+            alert(`خطای سرور (کد ${response.status}):\n` + responseText);
+            return;
+          }
+          
+          if (response.ok) {
+            updateChargeRow(chargeId, result);
+          } else {
+            alert(`خطای سرور (کد ${response.status}):\n` + (result.message || JSON.stringify(result)));
+          }
+        } catch (err) {
+          console.error(err);
+          alert('خطا در تأیید رسید:\n' + err.message);
+        }
+      }
+    });
+
+    // Handle reject receipt
+    document.getElementById('charges-tbody').addEventListener('click', async (e) => {
+      if (e.target.classList.contains('reject-btn')) {
+        const btn = e.target;
+        const chargeId = btn.dataset.chargeId;
+        
+        const reason = prompt('دلیل رد رسید را وارد کنید:');
+        if (!reason) return;
+        
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        
+        try {
+          const response = await fetch(`/admin/charges/${chargeId}/reject`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({ reason: reason })
+          });
+          
+          if (response.status === 401) {
+            alert('نشست شما منقضی شده است. لطفاً دوباره وارد شوید.');
+            window.location.href = '/login';
+            return;
+          }
+          
+          const responseText = await response.text();
+          const contentType = response.headers.get('Content-Type');
+          let result;
+          
+          if (contentType && contentType.includes('application/json')) {
+            try {
+              result = JSON.parse(responseText);
+            } catch (parseErr) {
+              console.error('JSON parse error:', parseErr);
+              alert(`خطای سرور (کد ${response.status}):\n` + responseText);
+              return;
+            }
+          } else {
+            alert(`خطای سرور (کد ${response.status}):\n` + responseText);
+            return;
+          }
+          
+          if (response.ok) {
+            updateChargeRow(chargeId, result);
+          } else {
+            alert(`خطای سرور (کد ${response.status}):\n` + (result.message || JSON.stringify(result)));
+          }
+        } catch (err) {
+          console.error(err);
+          alert('خطا در رد رسید:\n' + err.message);
+        }
+      }
+    });
+  </script>
+</body>
+</html>

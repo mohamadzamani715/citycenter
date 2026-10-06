@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8">
+  <meta name="csrf-token" content="<%= csrfToken %>">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>گزارش‌های حسابداری</title>
+  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/persian-date@1.1.0/dist/persian-date.min.js" nonce="<%= cspNonce %>"></script>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>پنل مدیریت پاساژ سیتی سنتر چهارباغ</h1>
+      <button id="toggleTheme" class="btn-theme toggle-theme-btn" title="تغییر تم">
+        <span class="theme-icon">🌙</span>
+      </button>
+    </div>
+
+    <nav class="navbar">
+    <ul>
+      <li><a href="/admin/dashboard">داشبورد</a></li>
+      <li><a href="/admin/users">مدیریت مغازه‌ها</a></li>
+      <li><a href="/admin/accounting" class="active">گزارش‌های حسابداری</a></li>
+      <li><a href="/admin/settings">تنظیمات</a></li>
+    </ul>
+    <button class="btn btn-danger" data-action="logout">خروج</button>
+  </nav>
+
+    <div class="content">
+      <h2>گزارش‌های حسابداری</h2>
+      
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="summary">خلاصه مالی</button>
+        <button class="tab-btn" data-tab="transactions">جستجوی تراکنش‌ها</button>
+        <button class="tab-btn" data-tab="archive">بایگانی مغازه‌ها</button>
+      </div>
+
+      <!-- Tab 1: Summary -->
+      <div id="summary" class="tab-content active">
+        <!-- Summary Cards -->
+        <div class="summary-cards">
+          <div class="card card-blue">
+            <h3>کل مغازه‌ها</h3>
+            <p id="totalShops">-</p>
+          </div>
+          <div class="card card-red">
+            <h3>بدهکاران</h3>
+            <p id="debtorsCount">-</p>
+          </div>
+          <div class="card card-green">
+            <h3>جمع پرداخت‌شده</h3>
+            <p id="totalPaid">-</p>
+          </div>
+          <div class="card card-orange">
+            <h3>جمع پرداخت‌نشده</h3>
+            <p id="totalUnpaid">-</p>
+          </div>
+        </div>
+
+        <!-- Charts Container -->
+        <div class="charts-container">
+          <div class="chart-wrapper">
+            <h3>توزیع وضعیت شارژهای ماه جاری</h3>
+            <canvas id="pieChart"></canvas>
+          </div>
+          <div class="chart-wrapper">
+            <h3>مجموع مبالغ پرداخت‌شده در ۱۲ ماه گذشته</h3>
+            <canvas id="lineChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Transactions -->
+      <div id="transactions" class="tab-content">
+        <h3>جستجوی تراکنش‌ها</h3>
+        <form id="searchForm" class="filter-form">
+          <div class="acct-filter-col">
+            <label>از تاریخ:</label>
+            <input type="text" id="startDate" placeholder="۱۴۰۵/۰۱/۰۱" />
+          </div>
+          <div class="acct-filter-col">
+            <label>تا تاریخ:</label>
+            <input type="text" id="endDate" placeholder="۱۴۰۵/۱۲/۲۹" />
+          </div>
+          <div class="acct-filter-col">
+            <label>وضعیت:</label>
+            <select id="status">
+              <option value="">همه</option>
+              <option value="paid">پرداخت‌شده</option>
+              <option value="pending">در انتظار</option>
+              <option value="unpaid">پرداخت‌نشده</option>
+            </select>
+          </div>
+          <div class="acct-filter-col">
+            <label>کد پیگیری:</label>
+            <input type="text" id="trackingCode" />
+          </div>
+          <div class="acct-filter-col">
+            <label>حداقل مبلغ:</label>
+            <input type="number" id="minAmount" />
+          </div>
+          <div class="acct-filter-col">
+            <label>حداکثر مبلغ:</label>
+            <input type="number" id="maxAmount" />
+          </div>
+          <div class="acct-filter-actions">
+            <label class="acct-filter-checkbox-label">
+              <input type="checkbox" id="includeDeleted" />
+              نمایش مغازه‌های حذف‌شده
+            </label>
+          </div>
+          <button type="submit" class="btn btn-primary">جستجو</button>
+          <button type="button" id="exportCSV" class="btn btn-secondary">دانلود CSV</button>
+        </form>
+        <input type="hidden" id="shopId" />
+        <table id="transactionsTable" class="acct-table">
+          <thead>
+            <tr class="acct-table-header-row">
+              <th class="acct-th">نام مغازه</th>
+              <th class="acct-th">ماه شارژ</th>
+              <th class="acct-th">مبلغ</th>
+              <th class="acct-th">وضعیت</th>
+              <th class="acct-th">تاریخ پرداخت</th>
+              <th class="acct-th">کد پیگیری</th>
+            </tr>
+          </thead>
+          <tbody id="transactionsBody">
+            <tr><td colspan="6" class="acct-empty-message">لطفاً جستجو را انجام دهید</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Tab 3: Archive -->
+      <div id="archive" class="tab-content">
+        <h3>بایگانی مغازه‌ها</h3>
+        <table id="archivedShopsTable" class="acct-table">
+          <thead>
+            <tr class="acct-table-header-row">
+              <th class="acct-th">نام مغازه</th>
+              <th class="acct-th">کد ملی</th>
+              <th class="acct-th">تاریخ حذف</th>
+              <th class="acct-th">عملیات</th>
+            </tr>
+          </thead>
+          <tbody id="archivedShopsBody">
+            <tr><td colspan="4" class="acct-empty-message">در حال بارگذاری...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" nonce="<%= cspNonce %>"></script>
+  <script src="/js/main.js" nonce="<%= cspNonce %>"></script>
+  <script nonce="<%= cspNonce %>">
+    // Escape untrusted values before inserting them into HTML (prevents stored XSS)
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // Fetch data and render charts
+    document.addEventListener('DOMContentLoaded', async function() {
+      try {
+        const res = await fetch('/admin/api/accounting-data');
+        if (!res.ok) throw new Error('Failed to fetch data');
+        const data = await res.json();
+
+        // Update summary cards
+        document.getElementById('totalShops').textContent = data.summary.totalShops.toLocaleString('fa-IR');
+        document.getElementById('debtorsCount').textContent = data.summary.debtorsCount.toLocaleString('fa-IR');
+        document.getElementById('totalPaid').textContent = data.summary.totalPaid.toLocaleString('fa-IR') + ' تومان';
+        document.getElementById('totalUnpaid').textContent = data.summary.totalUnpaid.toLocaleString('fa-IR') + ' تومان';
+
+        // Render pie chart
+        const pieCtx = document.getElementById('pieChart');
+        new Chart(pieCtx, {
+          type: 'pie',
+          data: {
+            labels: ['پرداخت‌شده', 'در انتظار', 'پرداخت‌نشده'],
+            datasets: [{
+              data: [data.pieData.paid, data.pieData.pending, data.pieData.unpaid],
+              backgroundColor: ['#28a745', '#ffc107', '#dc3545'],
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'bottom' }
+            }
+          }
+        });
+
+        // Render line chart
+        const lineCtx = document.getElementById('lineChart');
+        new Chart(lineCtx, {
+          type: 'line',
+          data: {
+            labels: data.lineData.map(d => d.month),
+            datasets: [{
+              label: 'مبلغ پرداخت‌شده',
+              data: data.lineData.map(d => d.total),
+              borderColor: '#007bff',
+              borderWidth: 2,
+              fill: false,
+              tension: 0.3
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'bottom' }
+            }
+          }
+        });
+
+        // Load archived shops
+        loadArchivedShops();
+
+        // Search form
+        document.getElementById('searchForm').addEventListener('submit', function(e) {
+          e.preventDefault();
+          
+          // Convert Persian dates to Gregorian
+          var startDateInput = document.getElementById('startDate');
+          if (startDateInput.value) {
+            var startMoment = new PersianDate(startDateInput.value).toLocale('en').format('YYYY-MM-DD');
+            startDateInput.dataset.gregorian = startMoment;
+          }
+          
+          var endDateInput = document.getElementById('endDate');
+          if (endDateInput.value) {
+            var endMoment = new PersianDate(endDateInput.value).toLocale('en').format('YYYY-MM-DD');
+            endDateInput.dataset.gregorian = endMoment;
+          }
+          
+          // Now execute the search
+          searchTransactions();
+        });
+
+        // Export CSV
+        document.getElementById('exportCSV').addEventListener('click', function() {
+          exportTransactionsCSV();
+        });
+      } catch (err) {
+        console.error(err);
+        alert('خطا در بارگذاری داده‌ها');
+      }
+    });
+
+    const statusLabels = {
+      paid: 'پرداخت‌شده',
+      pending: 'در انتظار',
+      unpaid: 'پرداخت‌نشده'
+    };
+
+    async function searchTransactions() {
+      const startDateInput = document.getElementById('startDate');
+      const startDate = startDateInput.dataset.gregorian || startDateInput.value;
+      const endDateInput = document.getElementById('endDate');
+      const endDate = endDateInput.dataset.gregorian || endDateInput.value;
+      const status = document.getElementById('status').value;
+      const trackingCode = document.getElementById('trackingCode').value;
+      const minAmount = document.getElementById('minAmount').value;
+      const maxAmount = document.getElementById('maxAmount').value;
+      const includeDeleted = document.getElementById('includeDeleted').checked;
+      const shopId = document.getElementById('shopId').value;
+
+      const params = new URLSearchParams();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      if (status) params.append('status', status);
+      if (trackingCode) params.append('trackingCode', trackingCode);
+      if (minAmount) params.append('minAmount', minAmount);
+      if (maxAmount) params.append('maxAmount', maxAmount);
+      if (includeDeleted) params.append('includeDeleted', 'true');
+      if (shopId) params.append('shopId', shopId);
+
+      try {
+        const res = await fetch('/admin/api/transactions?' + params.toString());
+        if (!res.ok) throw new Error('Failed to fetch transactions');
+        const transactions = await res.json();
+
+        const tbody = document.getElementById('transactionsBody');
+        if (!transactions.length) {
+          tbody.innerHTML = '<tr><td colspan="6" class="acct-empty-message">تراکنشی یافت نشد</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = transactions.map(t => {
+          // Use only native Intl.DateTimeFormat to format dates in Persian calendar
+          let monthLabel = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { 
+            year: 'numeric', 
+            month: '2-digit', 
+            day: '2-digit' 
+          }).format(new Date(t.charge_month));
+          
+          let paidDate = '';
+          if (t.paid_at) {
+            paidDate = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { 
+              year: 'numeric', 
+              month: '2-digit', 
+              day: '2-digit' 
+            }).format(new Date(t.paid_at));
+          }
+          
+          return `<tr>
+            <td class="acct-td">${escapeHtml(t.shop.shop_name)}</td>
+            <td class="acct-td">${escapeHtml(monthLabel)}</td>
+            <td class="acct-td">${escapeHtml(Number(t.amount).toLocaleString('fa-IR'))} تومان</td>
+            <td class="acct-td"><span class="status-badge ${escapeHtml(t.status)}">${escapeHtml(statusLabels[t.status])}</span></td>
+            <td class="acct-td">${escapeHtml(paidDate)}</td>
+            <td class="acct-td">${escapeHtml(t.transaction_code || '-')}</td>
+          </tr>`;
+        }).join('');
+      } catch (err) {
+        console.error(err);
+        alert('خطا در جستجوی تراکنش‌ها');
+      }
+    }
+
+    function exportTransactionsCSV() {
+      const startDateInput = document.getElementById('startDate');
+      const startDate = startDateInput.dataset.gregorian || startDateInput.value;
+      const endDateInput = document.getElementById('endDate');
+      const endDate = endDateInput.dataset.gregorian || endDateInput.value;
+      const status = document.getElementById('status').value;
+      const trackingCode = document.getElementById('trackingCode').value;
+      const minAmount = document.getElementById('minAmount').value;
+      const maxAmount = document.getElementById('maxAmount').value;
+      const includeDeleted = document.getElementById('includeDeleted').checked;
+      const shopId = document.getElementById('shopId').value;
+
+      const params = new URLSearchParams();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      if (status) params.append('status', status);
+      if (trackingCode) params.append('trackingCode', trackingCode);
+      if (minAmount) params.append('minAmount', minAmount);
+      if (maxAmount) params.append('maxAmount', maxAmount);
+      if (includeDeleted) params.append('includeDeleted', 'true');
+      if (shopId) params.append('shopId', shopId);
+
+      window.open('/admin/api/transactions/export-csv?' + params.toString(), '_blank');
+    }
+
+    async function loadArchivedShops() {
+      try {
+        const res = await fetch('/admin/api/archived-shops');
+        if (!res.ok) throw new Error('Failed to fetch archived shops');
+        const shops = await res.json();
+
+        const tbody = document.getElementById('archivedShopsBody');
+        if (!shops.length) {
+          tbody.innerHTML = '<tr><td colspan="4" class="acct-empty-message">مغازه‌ای در بایگانی وجود ندارد</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = shops.map(shop => {
+          // Use native Intl.DateTimeFormat for Persian calendar
+          const deletedDate = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { 
+            year: 'numeric', 
+            month: '2-digit', 
+            day: '2-digit' 
+          }).format(new Date(shop.deleted_at));
+          
+          return `<tr>
+            <td class="acct-td">${escapeHtml(shop.shop_name)}</td>
+            <td class="acct-td">${escapeHtml(shop.national_code)}</td>
+            <td class="acct-td">${escapeHtml(deletedDate)}</td>
+            <td class="acct-td">
+              <button class="btn btn-primary view-tx-btn" data-shop-id="${escapeHtml(shop.id)}">مشاهده تراکنش‌ها</button>
+            </td>
+          </tr>`;
+        }).join('');
+      } catch (err) {
+        console.error(err);
+        alert('خطا در بارگذاری مغازه‌های بایگانی شده');
+      }
+    }
+
+    function viewShopTransactions(shopId) {
+      // Switch to transactions tab
+      const tabBtns = document.querySelectorAll('.tab-btn');
+      const tabContents = document.querySelectorAll('.tab-content');
+      tabBtns.forEach(btn => btn.classList.remove('active'));
+      tabContents.forEach(content => content.classList.remove('active'));
+      
+      tabBtns[1].classList.add('active'); // index of transactions tab
+      document.getElementById('transactions').classList.add('active');
+
+      // Set shopId and includeDeleted
+      document.getElementById('shopId').value = shopId;
+      document.getElementById('includeDeleted').checked = true;
+
+      // Clear other fields
+      document.getElementById('startDate').value = '';
+      document.getElementById('endDate').value = '';
+      document.getElementById('status').value = '';
+      document.getElementById('trackingCode').value = '';
+      document.getElementById('minAmount').value = '';
+      document.getElementById('maxAmount').value = '';
+
+      // Execute search
+      searchTransactions();
+    }
+
+    // CSP-safe: delegate clicks on the archived-shops table instead of inline onclick.
+    const archivedShopsBody = document.getElementById('archivedShopsBody');
+    if (archivedShopsBody) {
+      archivedShopsBody.addEventListener('click', function(e) {
+        const btn = e.target.closest('.view-tx-btn');
+        if (btn) viewShopTransactions(btn.dataset.shopId);
+      });
+    }
+  </script>
+</body>
+</html>

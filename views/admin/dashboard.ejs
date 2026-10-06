@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8">
+  <meta name="csrf-token" content="<%= csrfToken %>">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>پنل مدیریت</title>
+  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>پنل مدیریت پاساژ سیتی سنتر چهارباغ</h1>
+      <button id="toggleTheme" class="btn-theme toggle-theme-btn" title="تغییر تم">
+        <span class="theme-icon">🌙</span>
+      </button>
+    </div>
+
+    <nav class="navbar">
+    <ul>
+      <li><a href="/admin/dashboard" class="active">داشبورد</a></li>
+      <li><a href="/admin/users">مدیریت مغازه‌ها</a></li>
+      <li><a href="/admin/accounting">گزارش‌ها</a></li>
+      <li><a href="/admin/settings">تنظیمات</a></li>
+    </ul>
+    <button class="btn btn-danger" data-action="logout">خروج</button>
+  </nav>
+
+    <div class="content">
+      <h2>داشبورد مدیریت - <%= currentMonthJalali %></h2>
+
+      <!-- Summary Cards -->
+      <div class="summary-cards">
+        <div class="card card-blue">
+          <h3>کل مغازه‌ها</h3>
+          <p><%= summary.totalShops.toLocaleString('fa-IR') %></p>
+        </div>
+        <div class="card card-red">
+          <h3>بدهکاران</h3>
+          <p><%= summary.debtorsCount.toLocaleString('fa-IR') %></p>
+        </div>
+        <div class="card card-green">
+          <h3>جمع پرداخت‌شده</h3>
+          <p><%= summary.totalPaid.toLocaleString('fa-IR') %> تومان</p>
+        </div>
+        <div class="card card-orange">
+          <h3>جمع پرداخت‌نشده</h3>
+          <p><%= summary.totalUnpaid.toLocaleString('fa-IR') %> تومان</p>
+        </div>
+      </div>
+
+      <!-- Filter Form -->
+      <form class="filter-form" method="GET" action="/admin/dashboard">
+        <div>
+          <label for="search">جستجو:</label>
+          <input type="text" id="search" name="search" value="<%= search %>">
+        </div>
+        <div>
+          <label for="status">فیلتر وضعیت:</label>
+          <select id="status" name="status">
+            <option value="all" <%= status === 'all' ? 'selected' : '' %>>همه</option>
+            <option value="paid" <%= status === 'paid' ? 'selected' : '' %>>پرداخت‌شده</option>
+            <option value="pending" <%= status === 'pending' ? 'selected' : '' %>>در انتظار</option>
+            <option value="unpaid" <%= status === 'unpaid' ? 'selected' : '' %>>پرداخت‌نشده</option>
+          </select>
+        </div>
+        <button type="submit">اعمال</button>
+      </form>
+
+      <!-- Shops Table -->
+      <table>
+        <thead>
+          <tr>
+            <th>نام مغازه</th>
+            <th>کد ملی</th>
+            <th>مبلغ شارژ</th>
+            <th>وضعیت</th>
+            <th>تاریخ سررسید</th>
+            <th>تاریخ پرداخت</th>
+            <th>کد پیگیری</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (shops.length === 0) { %>
+            <tr>
+              <td colspan="7" class="empty-table-message">هیچ مغازه‌ای یافت نشد</td>
+            </tr>
+          <% } else { %>
+            <% shops.forEach(shop => { %>
+              <% const charge = shop.monthlyCharges[0]; %>
+              <% 
+                let dueDate = '-'; 
+                if (charge && charge.due_date) { 
+                  const d = new Date(charge.due_date); 
+                  if (!isNaN(d.getTime())) { 
+                    dueDate = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(d); 
+                  } 
+                } 
+              %>
+              <% 
+                let paidDate = '-'; 
+                if (charge && charge.paid_at) { 
+                  const d = new Date(charge.paid_at); 
+                  if (!isNaN(d.getTime())) { 
+                    paidDate = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(d); 
+                  } 
+                } 
+              %>
+              <tr>
+                <td><a href="/admin/shop/<%= shop.id %>"><%= shop.shop_name %></a></td>
+                <td><%= shop.national_code %></td>
+                <td><%= charge ? charge.amount.toLocaleString('fa-IR') : '-' %> تومان</td>
+                <td>
+                  <% if (!charge || charge.status === 'unpaid') { %>
+                    <span class="status-badge status-unpaid">پرداخت‌نشده</span>
+                  <% } else if (charge.status === 'pending') { %>
+                    <span class="status-badge status-pending">در انتظار</span>
+                  <% } else { %>
+                    <span class="status-badge status-paid">پرداخت‌شده</span>
+                  <% } %>
+                </td>
+                <td><%= dueDate %></td>
+                <td><%= paidDate %></td>
+                <td><%= charge && charge.transaction_code ? charge.transaction_code : '-' %></td>
+              </tr>
+            <% }) %>
+          <% } %>
+        </tbody>
+      </table>
+
+      <!-- Pagination -->
+      <div id="pagination" class="pagination">
+        <a href="?page=<%= page - 1 %>&limit=<%= limit %>&search=<%= encodeURIComponent(search) %>&status=<%= status %>"
+           class="btn btn-secondary <%= page <= 1 ? 'disabled' : '' %>"
+           <%= page <= 1 ? 'aria-disabled="true" tabindex="-1"' : '' %>>قبلی</a>
+        <span>صفحه <%= page %> از <%= totalPages %></span>
+        <a href="?page=<%= page + 1 %>&limit=<%= limit %>&search=<%= encodeURIComponent(search) %>&status=<%= status %>"
+           class="btn btn-secondary <%= page >= totalPages ? 'disabled' : '' %>"
+           <%= page >= totalPages ? 'aria-disabled="true" tabindex="-1"' : '' %>>بعدی</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/main.js" nonce="<%= cspNonce %>"></script>
+</body>
+</html>

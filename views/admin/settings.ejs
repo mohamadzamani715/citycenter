@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="<%= csrfToken %>">
+  <title>تنظیمات پنل مدیریت</title>
+  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>پنل مدیریت پاساژ سیتی سنتر چهارباغ</h1>
+      <button id="toggleTheme" class="btn-theme toggle-theme-btn" title="تغییر تم">
+        <span class="theme-icon">🌙</span>
+      </button>
+    </div>
+
+    <nav class="navbar">
+    <ul>
+      <li><a href="/admin/dashboard">داشبورد</a></li>
+      <li><a href="/admin/users">مدیریت مغازه‌ها</a></li>
+      <li><a href="/admin/accounting">گزارش‌ها</a></li>
+      <li><a href="/admin/settings" class="active">تنظیمات</a></li>
+    </ul>
+    <button class="btn btn-danger" data-action="logout">خروج</button>
+  </nav>
+
+    <div class="content">
+      <h2>تنظیمات عمومی</h2>
+      <form id="settingsForm" class="filter-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="settings-form-col">
+          <label>روز سررسید</label>
+          <input type="number" id="due_day" value="<%= settings?.due_day || 10 %>" min="1" max="31">
+        </div>
+        <div class="settings-form-col">
+          <label>مبلغ شارژ پیش‌فرض (تومان)</label>
+          <input type="number" id="default_fee" value="<%= settings?.default_fee || 150000 %>" step="1000">
+        </div>
+        <div class="settings-form-col-wide">
+          <label>آدرس Webhook</label>
+          <input type="url" id="webhook_url" value="<%= settings?.webhook_url || '' %>">
+        </div>
+        <div class="settings-form-col-wide">
+          <label>توکن Webhook</label>
+          <input type="text" id="webhook_token" value="<%= settings?.webhook_token || '' %>">
+        </div>
+        <div class="settings-form-col">
+          <label>مدت نگهداری تصاویر (ماه)</label>
+          <input type="number" id="image_retention_months" value="<%= settings?.image_retention_months || 24 %>" min="1">
+        </div>
+        <div class="settings-form-col">
+          <label>مدت نگهداری داده‌ها (ماه)</label>
+          <input type="number" id="data_retention_months" value="<%= settings?.data_retention_months || 60 %>" min="1">
+        </div>
+        <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
+      </form>
+
+      <h2>مدیریت کلیدهای API</h2>
+      <button id="createApiKeyBtn" class="btn btn-success settings-create-btn">ایجاد کلید جدید</button>
+      <table id="apiKeysTable">
+        <thead>
+          <tr>
+            <th>پیشوند کلید</th>
+            <th>توضیح</th>
+            <th>تاریخ ایجاد</th>
+            <th>عملیات</th>
+          </tr>
+        </thead>
+        <tbody id="apiKeysBody">
+          <% if (!apiKeys || apiKeys.length === 0) { %>
+            <tr>
+<td colspan="4" class="empty-table-message">کلیدی وجود ندارد</td>
+            </tr>
+          <% } else { %>
+            <% apiKeys.forEach(function(key) { %>
+              <tr data-id="<%= key.id %>">
+                <td><%= key.prefix ? key.prefix + '...' : '-' %></td>
+                <td><%= key.description || '-' %></td>
+                <td><%= key.created_at ? new Date(key.created_at).toLocaleDateString('fa-IR') : '-' %></td>
+                <td><button class="btn btn-danger btn-sm delete-api-key-btn" data-id="<%= key.id %>">حذف</button></td>
+              </tr>
+            <% }); %>
+          <% } %>
+        </tbody>
+      </table>
+
+      <h2>تغییر رمز مدیر</h2>
+      <p>رمز فعلی هرگز نمایش داده نمی‌شود؛ فقط برای تأیید هویت بررسی می‌گردد.</p>
+      <form id="adminPasswordForm" class="filter-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="settings-form-col">
+          <label>رمز فعلی</label>
+          <input type="password" id="adminCurrentPassword" autocomplete="current-password">
+        </div>
+        <div class="settings-form-col">
+          <label>رمز جدید (حداقل ۱۲ کاراکتر)</label>
+          <input type="password" id="adminNewPassword" autocomplete="new-password">
+        </div>
+        <div class="settings-form-col">
+          <label>تأیید رمز جدید</label>
+          <input type="password" id="adminConfirmPassword" autocomplete="new-password">
+        </div>
+        <button type="submit" class="btn btn-primary">تغییر رمز مدیر</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/main.js" nonce="<%= cspNonce %>"></script>
+  <script nonce="<%= cspNonce %>">
+    function getCsrfToken() {
+      const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      return token;
+    }
+
+    function getAuthHeaders() {
+      const csrf = getCsrfToken();
+      return {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrf
+      };
+    }
+
+    function showApiKeyModal(key) {
+      const modal = document.getElementById('apiKeyModal');
+      const display = document.getElementById('apiKeyDisplay');
+      const copyBtn = document.getElementById('copyApiKeyBtn');
+      if (modal && display && copyBtn) {
+        display.textContent = key;
+        modal.style.display = 'flex';
+        copyBtn.textContent = '📋 کپی کردن';
+      }
+    }
+
+    async function deleteApiKey(id) {
+      if (!confirm('آیا از حذف این کلید مطمئن هستید؟')) return;
+      try {
+        const res = await fetch('/admin/api/api-keys/' + id, {
+          method: 'DELETE',
+          headers: getAuthHeaders()
+        });
+        if (res.ok) {
+          alert('کلید حذف شد');
+          const row = document.querySelector('tr[data-id="' + id + '"]');
+          if (row) row.remove();
+          const tbody = document.getElementById('apiKeysBody');
+          if (tbody && !tbody.querySelector('tr[data-id]')) {
+            tbody.innerHTML = '<tr><td colspan="4" class="empty-table-message">کلیدی وجود ندارد</td></tr>';
+          }
+        } else {
+          const result = await res.json();
+          alert('خطا: ' + (result.message || 'حذف ناموفق'));
+        }
+      } catch (err) {
+        console.error(err);
+        alert('خطا در حذف کلید');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      // Settings form
+      const settingsForm = document.getElementById('settingsForm');
+      if (settingsForm) {
+        settingsForm.addEventListener('submit', async function(e) {
+          e.preventDefault();
+          const data = {
+            due_day: document.getElementById('due_day').value,
+            default_fee: document.getElementById('default_fee').value,
+            webhook_url: document.getElementById('webhook_url').value,
+            webhook_token: document.getElementById('webhook_token').value,
+            image_retention_months: document.getElementById('image_retention_months').value,
+            data_retention_months: document.getElementById('data_retention_months').value
+          };
+          try {
+            const res = await fetch('/admin/api/settings', {
+              method: 'PUT',
+              headers: getAuthHeaders(),
+              body: JSON.stringify(data)
+            });
+            if (res.ok) {
+              alert('تنظیمات ذخیره شد');
+            } else {
+              const result = await res.json();
+              alert('خطا: ' + (result.message || 'خطا در ذخیره'));
+            }
+          } catch (err) {
+            console.error(err);
+            alert('خطا در ذخیره تنظیمات');
+          }
+        });
+      }
+
+      // Create API key button
+      const createApiKeyBtn = document.getElementById('createApiKeyBtn');
+      if (createApiKeyBtn) {
+        createApiKeyBtn.addEventListener('click', async function() {
+          const desc = prompt('توضیح کلید را وارد کنید:') || '';
+          try {
+            const res = await fetch('/admin/api/api-keys', {
+              method: 'POST',
+              headers: getAuthHeaders(),
+              body: JSON.stringify({ description: desc })
+            });
+            if (res.ok) {
+              const result = await res.json();
+              showApiKeyModal(result.key);
+            } else {
+              const result = await res.json();
+              alert('خطا: ' + (result.message || 'ایجاد کلید ناموفق'));
+            }
+          } catch (err) {
+            console.error(err);
+            alert('خطا در ایجاد کلید');
+          }
+        });
+      }
+
+      // Close API key modal
+      const closeApiKeyModal = document.getElementById('closeApiKeyModal');
+      if (closeApiKeyModal) {
+        closeApiKeyModal.addEventListener('click', function() {
+          const modal = document.getElementById('apiKeyModal');
+          if (modal) {
+            modal.style.display = 'none';
+            location.reload();
+          }
+        });
+      }
+
+      // Copy API key button
+      const copyApiKeyBtn = document.getElementById('copyApiKeyBtn');
+      if (copyApiKeyBtn) {
+        copyApiKeyBtn.addEventListener('click', async function() {
+          const display = document.getElementById('apiKeyDisplay');
+          if (display) {
+            const key = display.textContent;
+            try {
+              await navigator.clipboard.writeText(key);
+              this.textContent = '✅ کپی شد';
+            } catch (err) {
+              alert('خطا در کپی کردن: ' + err.message);
+            }
+          }
+        });
+      }
+
+      // CSP-safe: bind the delete button here instead of using an inline onclick.
+      const apiKeysBody = document.getElementById('apiKeysBody');
+      if (apiKeysBody) {
+        apiKeysBody.addEventListener('click', function(e) {
+          const btn = e.target.closest('.delete-api-key-btn');
+          if (btn) deleteApiKey(btn.dataset.id);
+        });
+      }
+
+      // Admin password form
+      const adminPasswordForm = document.getElementById('adminPasswordForm');
+      if (adminPasswordForm) {
+        adminPasswordForm.addEventListener('submit', async function(e) {
+          e.preventDefault();
+          const data = {
+            current_password: document.getElementById('adminCurrentPassword').value,
+            new_password: document.getElementById('adminNewPassword').value,
+            confirm_password: document.getElementById('adminConfirmPassword').value
+          };
+          try {
+            const res = await fetch('/admin/api/account/password', {
+              method: 'PUT',
+              headers: getAuthHeaders(),
+              body: JSON.stringify(data)
+            });
+            if (res.ok) {
+              alert('رمز مدیر با موفقیت تغییر یافت');
+              adminPasswordForm.reset();
+            } else {
+              const result = await res.json();
+              alert('خطا: ' + (result.message || 'تغییر رمز ناموفق'));
+            }
+          } catch (err) {
+            console.error(err);
+            alert('خطا در تغییر رمز مدیر');
+          }
+        });
+      }
+    });
+  </script>
+
+  <div id="apiKeyModal" class="modal">
+    <div class="modal-content settings-api-modal">
+      <h3>کلید API جدید ایجاد شد</h3>
+      <p class="settings-warning-text">این کلید فقط یک بار نمایش داده می‌شود، لطفاً آن را ذخیره کنید!</p>
+      <div class="settings-key-box">
+        <code id="apiKeyDisplay" class="settings-key-display"></code>
+        <button id="copyApiKeyBtn" class="btn btn-primary settings-copy-btn">📋 کپی کردن</button>
+      </div>
+      <button id="closeApiKeyModal" class="btn btn-secondary settings-modal-close">بستن</button>
+    </div>
+  </div>
+</body>
+</html>

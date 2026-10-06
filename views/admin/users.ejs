@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="<%= csrfToken %>">
+  <title>مدیریت کاربران</title>
+  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>پنل مدیریت پاساژ سیتی سنتر چهارباغ</h1>
+      <button id="toggleTheme" class="btn-theme toggle-theme-btn" title="تغییر تم">
+        <span class="theme-icon">🌙</span>
+      </button>
+    </div>
+
+    <nav class="navbar">
+    <ul>
+      <li><a href="/admin/dashboard">داشبورد</a></li>
+      <li><a href="/admin/users" class="active">مدیریت مغازه‌ها</a></li>
+      <li><a href="/admin/accounting">گزارش‌ها</a></li>
+      <li><a href="/admin/settings">تنظیمات</a></li>
+    </ul>
+    <button class="btn btn-danger" data-action="logout">خروج</button>
+  </nav>
+
+    <div class="content">
+      <h2>مدیریت کاربران</h2>
+
+      <button id="add-user-btn" class="btn btn-add">افزودن مغازه‌دار جدید</button>
+
+      <!-- Filter Form -->
+      <form class="filter-form" method="GET" action="/admin/users">
+        <div>
+          <label for="search">جستجو:</label>
+          <input type="text" id="search" name="search" value="<%= search %>">
+        </div>
+        <div>
+          <label for="status">فیلتر وضعیت:</label>
+          <select id="status" name="status">
+            <option value="all" <%= status === 'all' ? 'selected' : '' %>>همه</option>
+            <option value="approved" <%= status === 'approved' ? 'selected' : '' %>>تأیید شده</option>
+            <option value="pending" <%= status === 'pending' ? 'selected' : '' %>>در انتظار</option>
+            <option value="deleted" <%= status === 'deleted' ? 'selected' : '' %>>بایگانی</option>
+          </select>
+        </div>
+        <button type="submit">اعمال</button>
+      </form>
+
+      <!-- Users Table -->
+      <table id="users-table">
+        <thead>
+          <tr>
+            <th>ردیف</th>
+            <th>نام</th>
+            <th>کد ملی</th>
+            <th>نام فروشگاه</th>
+            <th>پلاک</th>
+            <th>تلفن</th>
+            <th>وضعیت</th>
+            <th>عملیات</th>
+          </tr>
+        </thead>
+        <tbody id="users-tbody">
+          <% if (users.length === 0) { %>
+            <tr id="no-users-row">
+              <td colspan="8" class="empty-table-message">هیچ کاربری یافت نشد</td>
+            </tr>
+          <% } else { %>
+            <% users.forEach((user, index) => { %>
+              <tr id="user-<%= user.id %>" data-user-id="<%= user.id %>"
+                  data-first-name="<%= user.first_name %>"
+                  data-last-name="<%= user.last_name %>"
+                  data-national-code="<%= user.national_code %>"
+                  data-shop-name="<%= user.shop_name %>"
+                  data-plaque="<%= user.plaque %>"
+                  data-phone="<%= user.phone %>">
+                <td><%= (index + 1).toLocaleString('fa-IR') %></td>
+                <td><%= user.first_name %> <%= user.last_name %></td>
+                <td><%= user.national_code %></td>
+                <td><%= user.shop_name %></td>
+                <td><%= user.plaque %></td>
+                <td><%= user.phone %></td>
+                <td id="status-<%= user.id %>">
+                  <% if (user.deleted_at) { %>
+                    <span class="status-badge status-deleted">بایگانی</span>
+                  <% } else if (user.is_approved) { %>
+                    <span class="status-badge status-approved">تأیید شده</span>
+                  <% } else { %>
+                    <span class="status-badge status-pending">در انتظار</span>
+                  <% } %>
+                </td>
+                <td id="actions-<%= user.id %>">
+                  <% if (!user.deleted_at && !user.is_approved) { %>
+                    <button class="btn-small btn-success approve-btn" data-user-id="<%= user.id %>">تأیید</button>
+                  <% } %>
+                  <% if (!user.deleted_at) { %>
+                    <button class="btn-small btn-primary edit-btn" data-user-id="<%= user.id %>">ویرایش</button>
+                    <button class="btn-small btn-danger delete-btn" data-user-id="<%= user.id %>">حذف</button>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          <% } %>
+        </tbody>
+      </table>
+
+      <!-- Pagination -->
+      <div id="pagination" class="pagination">
+        <a href="?page=<%= page - 1 %>&limit=<%= limit %>&search=<%= encodeURIComponent(search) %>&status=<%= status %>"
+           class="btn btn-secondary <%= page <= 1 ? 'disabled' : '' %>"
+           <%= page <= 1 ? 'aria-disabled="true" tabindex="-1"' : '' %>>قبلی</a>
+        <span>صفحه <%= page %> از <%= totalPages %></span>
+        <a href="?page=<%= page + 1 %>&limit=<%= limit %>&search=<%= encodeURIComponent(search) %>&status=<%= status %>"
+           class="btn btn-secondary <%= page >= totalPages ? 'disabled' : '' %>"
+           <%= page >= totalPages ? 'aria-disabled="true" tabindex="-1"' : '' %>>بعدی</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div id="edit-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>ویرایش کاربر</h3>
+        <span class="close">&times;</span>
+      </div>
+      <form id="edit-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" id="edit-user-id" name="id">
+        <div class="form-group">
+          <label for="edit-first-name">نام</label>
+          <input type="text" id="edit-first-name" name="first_name" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-last-name">نام خانوادگی</label>
+          <input type="text" id="edit-last-name" name="last_name" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-national-code">کد ملی</label>
+          <input type="text" id="edit-national-code" name="national_code" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-shop-name">نام فروشگاه</label>
+          <input type="text" id="edit-shop-name" name="shop_name" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-plaque">پلاک</label>
+          <input type="text" id="edit-plaque" name="plaque" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-phone">تلفن</label>
+          <input type="text" id="edit-phone" name="phone" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-password">رمز عبور (اختیاری)</label>
+          <input type="password" id="edit-password" name="password">
+        </div>
+        <button type="submit" class="btn btn-primary">ذخیره</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Modal -->
+  <div id="add-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>افزودن کاربر</h3>
+        <span class="close">&times;</span>
+      </div>
+      <form id="add-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="form-group">
+          <label for="add-first-name">نام</label>
+          <input type="text" id="add-first-name" name="first_name" required>
+        </div>
+        <div class="form-group">
+          <label for="add-last-name">نام خانوادگی</label>
+          <input type="text" id="add-last-name" name="last_name" required>
+        </div>
+        <div class="form-group">
+          <label for="add-national-code">کد ملی</label>
+          <input type="text" id="add-national-code" name="national_code" required>
+        </div>
+        <div class="form-group">
+          <label for="add-shop-name">نام فروشگاه</label>
+          <input type="text" id="add-shop-name" name="shop_name" required>
+        </div>
+        <div class="form-group">
+          <label for="add-plaque">پلاک</label>
+          <input type="text" id="add-plaque" name="plaque" required>
+        </div>
+        <div class="form-group">
+          <label for="add-phone">تلفن</label>
+          <input type="text" id="add-phone" name="phone" required>
+        </div>
+        <div class="form-group">
+          <label for="add-password">رمز عبور</label>
+          <input type="password" id="add-password" name="password" required>
+        </div>
+        <div class="form-group">
+          <label for="add-confirm-password">تکرار رمز عبور</label>
+          <input type="password" id="add-confirm-password" name="confirm_password" required>
+        </div>
+        <button type="submit" class="btn btn-primary">افزودن</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/main.js" nonce="<%= cspNonce %>"></script>
+  <script nonce="<%= cspNonce %>">
+    // Get CSRF Token helper
+    function getCsrfToken() {
+      return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    }
+
+    // Escape untrusted values before inserting them into HTML (prevents stored XSS)
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // Initialize modals
+    const editModal = document.getElementById('edit-modal');
+    const addModal = document.getElementById('add-modal');
+
+    // Close modals when clicking close or outside
+    document.querySelectorAll('.close').forEach(closeBtn => {
+      closeBtn.onclick = () => {
+        editModal.style.display = 'none';
+        addModal.style.display = 'none';
+      };
+    });
+
+    window.onclick = (event) => {
+      if (event.target === editModal) editModal.style.display = 'none';
+      if (event.target === addModal) addModal.style.display = 'none';
+    };
+
+    // Approve button handler
+    document.getElementById('users-tbody').addEventListener('click', async (e) => {
+      if (e.target.classList.contains('approve-btn')) {
+        const userId = e.target.dataset.userId;
+        try {
+          const response = await fetch(`/admin/users/${userId}/approve`, {
+            method: 'PUT',
+            headers: {
+              'X-CSRF-Token': getCsrfToken()
+            }
+          });
+          const data = await response.json();
+          if (response.ok) {
+            document.getElementById(`status-${userId}`).innerHTML = '<span class="status-badge status-approved">تأیید شده</span>';
+            e.target.remove();
+          } else {
+            alert(data.message);
+          }
+        } catch (err) {
+          console.error(err);
+          alert('خطا در تأیید کاربر');
+        }
+      }
+    });
+
+    // Delete button handler
+    document.getElementById('users-tbody').addEventListener('click', async (e) => {
+      if (e.target.classList.contains('delete-btn')) {
+        const userId = e.target.dataset.userId;
+        if (confirm('آیا از حذف این کاربر اطمینان دارید؟')) {
+          try {
+            const response = await fetch(`/admin/users/${userId}`, {
+              method: 'DELETE',
+              headers: {
+                'X-CSRF-Token': getCsrfToken()
+              }
+            });
+            const data = await response.json();
+            if (response.ok) {
+              document.getElementById(`status-${userId}`).innerHTML = '<span class="status-badge status-deleted">بایگانی</span>';
+              document.getElementById(`actions-${userId}`).innerHTML = '';
+            } else {
+              alert(data.message);
+            }
+          } catch (err) {
+            console.error(err);
+            alert('خطا در حذف کاربر');
+          }
+        }
+      }
+    });
+
+    // Edit button handler
+    document.getElementById('users-tbody').addEventListener('click', async (e) => {
+      if (e.target.classList.contains('edit-btn')) {
+        const userId = e.target.dataset.userId;
+        const row = document.getElementById(`user-${userId}`);
+        document.getElementById('edit-user-id').value = userId;
+        document.getElementById('edit-first-name').value = row.dataset.firstName;
+        document.getElementById('edit-last-name').value = row.dataset.lastName;
+        document.getElementById('edit-national-code').value = row.dataset.nationalCode;
+        document.getElementById('edit-shop-name').value = row.dataset.shopName;
+        document.getElementById('edit-plaque').value = row.dataset.plaque;
+        document.getElementById('edit-phone').value = row.dataset.phone;
+        editModal.style.display = 'flex';
+      }
+    });
+
+    // Add button handler
+    document.getElementById('add-user-btn').addEventListener('click', () => {
+      document.getElementById('add-form').reset();
+      addModal.style.display = 'flex';
+    });
+
+    // Edit form submit
+    document.getElementById('edit-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const userId = document.getElementById('edit-user-id').value;
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData);
+      try {
+        const response = await fetch(`/admin/users/${userId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': getCsrfToken()
+          },
+          body: JSON.stringify(data)
+        });
+        const result = await response.json();
+        if (response.ok) {
+          const row = document.getElementById(`user-${userId}`);
+          row.dataset.firstName = result.user.first_name;
+          row.dataset.lastName = result.user.last_name;
+          row.dataset.nationalCode = result.user.national_code;
+          row.dataset.shopName = result.user.shop_name;
+          row.dataset.plaque = result.user.plaque;
+          row.dataset.phone = result.user.phone;
+          const cells = row.cells;
+          cells[1].textContent = `${result.user.first_name} ${result.user.last_name}`;
+          cells[2].textContent = result.user.national_code;
+          cells[3].textContent = result.user.shop_name;
+          cells[4].textContent = result.user.plaque;
+          cells[5].textContent = result.user.phone;
+          editModal.style.display = 'none';
+        } else {
+          alert(result.message);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('خطا در ویرایش کاربر');
+      }
+    });
+
+    // Add form submit
+    document.getElementById('add-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData);
+      try {
+        const response = await fetch('/admin/users', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': getCsrfToken()
+          },
+          body: JSON.stringify(data)
+        });
+        const result = await response.json();
+        if (response.ok) {
+          const tbody = document.getElementById('users-tbody');
+          const noUsersRow = document.getElementById('no-users-row');
+          if (noUsersRow) noUsersRow.remove();
+          const newRow = document.createElement('tr');
+          newRow.id = `user-${result.user.id}`;
+          newRow.dataset.userId = result.user.id;
+          newRow.dataset.firstName = result.user.first_name;
+          newRow.dataset.lastName = result.user.last_name;
+          newRow.dataset.nationalCode = result.user.national_code;
+          newRow.dataset.shopName = result.user.shop_name;
+          newRow.dataset.plaque = result.user.plaque;
+          newRow.dataset.phone = result.user.phone;
+          const currentCount = tbody.children.length;
+          newRow.innerHTML = `
+            <td>${escapeHtml((currentCount + 1).toLocaleString('fa-IR'))}</td>
+            <td>${escapeHtml(result.user.first_name)} ${escapeHtml(result.user.last_name)}</td>
+            <td>${escapeHtml(result.user.national_code)}</td>
+            <td>${escapeHtml(result.user.shop_name)}</td>
+            <td>${escapeHtml(result.user.plaque)}</td>
+            <td>${escapeHtml(result.user.phone)}</td>
+            <td id="status-${escapeHtml(result.user.id)}"><span class="status-badge status-approved">تأیید شده</span></td>
+            <td id="actions-${escapeHtml(result.user.id)}">
+              <button class="btn-small btn-primary edit-btn" data-user-id="${escapeHtml(result.user.id)}">ویرایش</button>
+              <button class="btn-small btn-danger delete-btn" data-user-id="${escapeHtml(result.user.id)}">حذف</button>
+            </td>
+          `;
+          tbody.appendChild(newRow);
+          addModal.style.display = 'none';
+        } else {
+          alert(result.message);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('خطا در افزودن کاربر');
+      }
+    });
+  </script>
+</body>
+</html>

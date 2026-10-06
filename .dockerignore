@@ -1,0 +1,74 @@
+# =========================================================
+# .dockerignore — Files excluded from Docker build context
+# =========================================================
+
+# Dependencies (will be reinstalled inside the container)
+node_modules
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs (will be mounted as volume)
+logs/*.log
+*.log
+
+# Uploads (will be mounted as volume)
+public/uploads/*
+!public/uploads/.gitkeep
+
+# Backups and temp files
+backups/
+*.bak
+*.bak-*
+*.before-*
+*.tmp
+.trash-logs
+
+# Tests and scripts (not needed in production)
+test-*.js
+test_*.js
+*.test.js
+
+# Documentation (not needed in production)
+README.md
+COMPLETE_ANALYSIS.md
+PROGRESS.md
+Files for AI Context Package.txt
+graphify-out
+
+# Deployment files (not needed inside the container itself)
+docker-compose*.yml
+Dockerfile
+.dockerignore
+ecosystem.config.js
+nginx.conf
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+
+# Editor configs
+.editorconfig
+.prettierrc
+.eslintrc*

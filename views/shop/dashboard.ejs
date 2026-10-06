@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="<%= csrfToken %>">
+  <title>پنل مغازه‌دار</title>
+  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1><%= shop.shop_name %></h1>
+      <button id="toggleTheme" class="btn-theme toggle-theme-btn" title="تغییر تم">
+        <span class="theme-icon">🌙</span>
+      </button>
+    </div>
+    <nav class="navbar">
+      <ul><li><a href="/shop/dashboard">داشبورد</a></li></ul>
+      <button class="btn btn-danger" id="logoutBtn">خروج</button>
+    </nav>
+    <div class="content">
+      <h2>شارژ ماه جاری</h2>
+      <% if (!currentCharge) { %>
+        <div id="chargeCard" class="charge-card card-gray"><h3>هنوز شارژی برای این ماه ثبت نشده است.</h3></div>
+      <% } else if (currentCharge.status === 'unpaid' && !currentCharge.rejected_reason) { %>
+        <div id="chargeCard" class="charge-card card-red">
+          <h3>شارژ پرداخت نشده</h3>
+          <p><strong>مبلغ:</strong> <%= Number(currentCharge.amount).toLocaleString('fa-IR') %> تومان</p>
+          <button id="payButton" class="btn btn-primary">پرداخت آنلاین</button>
+        </div>
+      <% } else if (currentCharge.status === 'pending') { %>
+        <div id="chargeCard" class="charge-card card-orange">
+          <h3>در انتظار تأیید</h3>
+          <p>رسید شما ارسال شده است. منتظر تأیید مدیریت باشید.</p>
+        </div>
+      <% } else if (currentCharge.status === 'paid') { %>
+        <div id="chargeCard" class="charge-card card-green">
+          <h3>پرداخت شده</h3>
+          <p><strong>مبلغ:</strong> <%= Number(currentCharge.amount).toLocaleString('fa-IR') %> تومان</p>
+          <% if (currentCharge.paid_at) { %>
+            <p><strong>تاریخ پرداخت:</strong> <%= new Date(currentCharge.paid_at).toLocaleString('fa-IR') %></p>
+          <% } %>
+          <% if (currentCharge.transaction_code) { %>
+            <p><strong>کد پیگیری:</strong> <%= currentCharge.transaction_code %></p>
+          <% } %>
+        </div>
+      <% } else if (currentCharge.status === 'unpaid' && currentCharge.rejected_reason) { %>
+        <div id="chargeCard" class="charge-card card-red">
+          <h3>پرداخت رد شد</h3>
+          <p><strong>دلیل:</strong> <%= currentCharge.rejected_reason %></p>
+          <button id="payButton" class="btn btn-primary">ارسال مجدد رسید</button>
+        </div>
+      <% } %>
+
+      <div class="section">
+        <h3>بدهی‌های معوق</h3>
+        <div id="debtsContainer">
+          <% if (debts.length === 0) { %>
+            <div class="charge-card card-green"><h4>شما هیچ بدهی معوقی ندارید 🎉</h4></div>
+          <% } else { %>
+            <% debts.forEach(debt => { %>
+              <div class="charge-card card-red">
+                <h4>ماه: <%= new Date(debt.charge_month).toLocaleString('fa-IR', { month: 'long', year: 'numeric' }) %></h4>
+                <p><strong>مبلغ:</strong> <%= Number(debt.amount).toLocaleString('fa-IR') %> تومان</p>
+                <p><strong>تاریخ سررسید:</strong> <%= new Date(debt.charge_month).toLocaleDateString('fa-IR') %></p>
+                <p><strong>روزهای تأخیر:</strong> <%= debt.delayDays %></p>
+              </div>
+            <% }); %>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>تاریخچه تراکنش‌ها</h3>
+        <div id="transactionContainer">
+          <% if (transactions.length === 0) { %>
+            <p>تراکنشی یافت نشد.</p>
+          <% } else { %>
+            <table>
+              <thead><tr><th>ماه شارژ</th><th>مبلغ</th><th>وضعیت</th><th>تاریخ پرداخت</th><th>کد پیگیری</th></tr></thead>
+              <tbody id="transactionBody">
+                <% transactions.forEach(transaction => { %>
+                  <tr>
+                    <td><%= new Date(transaction.charge_month).toLocaleString('fa-IR', { month: 'long', year: 'numeric' }) %></td>
+                    <td><%= Number(transaction.amount).toLocaleString('fa-IR') %> تومان</td>
+                    <td>
+                      <% if (transaction.status === 'paid') { %><span class="badge badge-paid">پرداخت شده</span>
+                      <% } else if (transaction.status === 'pending') { %><span class="badge badge-pending">در انتظار تأیید</span>
+                      <% } else { %><span class="badge badge-unpaid">پرداخت نشده</span><% } %>
+                    </td>
+                    <td><%= transaction.paid_at ? new Date(transaction.paid_at).toLocaleDateString('fa-IR') : '-' %></td>
+                    <td><%= transaction.transaction_code || '-' %></td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+            <div id="pagination">
+              <button id="prevBtn" class="btn btn-secondary" <%= currentPage <= 1 ? 'disabled' : '' %>>قبلی</button>
+              <span id="pageInfo">صفحه <%= currentPage %> از <%= totalPages %></span>
+              <button id="nextBtn" class="btn btn-secondary" <%= currentPage >= totalPages ? 'disabled' : '' %>>بعدی</button>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="uploadModal" class="modal">
+    <div class="modal-content">
+      <h3>بارگذاری رسید</h3>
+      <input type="file" id="receiptFile" accept=".jpg,.jpeg,.png">
+        <img id="previewImage" class="preview-image-hidden">
+      <div id="uploadError" class="upload-error"></div>
+      <button id="submitReceiptBtn" class="btn btn-primary">ارسال رسید</button>
+      <button id="cancelUploadBtn" class="btn">انصراف</button>
+    </div>
+  </div>
+
+  <script src="/js/main.js" nonce="<%= cspNonce %>"></script>
+  <script type="application/json" id="shopConfigData" nonce="<%= cspNonce %>"><%- JSON.stringify({ currentCharge: currentCharge || null, currentPage: currentPage || 1, totalPages: totalPages || 1, currentChargeAmount: currentCharge ? Number(currentCharge.amount) : 0 }).replace(/</g, "\\u003c") %></script>
+  <script nonce="<%= cspNonce %>">
+    var shopConfig = JSON.parse(document.getElementById('shopConfigData').textContent);
+    let pollingInterval = null;
+    let modal;
+
+    // ===== EVENT DELEGATION: روی document برای همیشه فعال =====
+    document.addEventListener('click', function(e) {
+      var prevBtn = e.target.closest('#prevBtn');
+      var nextBtn = e.target.closest('#nextBtn');
+      if (prevBtn) {
+        if (prevBtn.disabled) return;
+        if (shopConfig.currentPage > 1) loadPage(shopConfig.currentPage - 1);
+      }
+      if (nextBtn) {
+        if (nextBtn.disabled) return;
+        if (shopConfig.currentPage < shopConfig.totalPages) loadPage(shopConfig.currentPage + 1);
+      }
+    });
+
+    function startPolling() {
+      if (pollingInterval) return;
+      pollingInterval = setInterval(fetchChargeStatus, 5000);
+    }
+    function stopPolling() {
+      if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
+    }
+    async function fetchChargeStatus() {
+      try {
+        var csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        var res = await fetch('/shop/charge-status', { headers: { 'X-CSRF-Token': csrf } });
+        if (!res.ok) { stopPolling(); return; }
+        updateChargeCard(await res.json());
+      } catch (err) { console.error(err); }
+    }
+    function updateChargeCard(data) {
+      var chargeCard = document.getElementById('chargeCard');
+      if (!chargeCard) return;
+      var amt = data.amount || shopConfig.currentChargeAmount;
+      if (data.status === 'paid') {
+        stopPolling();
+        chargeCard.className = 'charge-card card-green';
+        chargeCard.innerHTML = '<h3>پرداخت شده</h3><p><strong>مبلغ:</strong> ' + Number(amt).toLocaleString('fa-IR') + ' تومان</p>' + (data.paid_at ? '<p><strong>تاریخ پرداخت:</strong> ' + new Date(data.paid_at).toLocaleString('fa-IR') + '</p>' : '') + (data.transaction_code ? '<p><strong>کد پیگیری:</strong> ' + data.transaction_code + '</p>' : '');
+      } else if (data.status === 'unpaid' && data.rejected_reason) {
+        stopPolling();
+        chargeCard.className = 'charge-card card-red';
+        chargeCard.innerHTML = '';
+        var h3 = document.createElement('h3');
+        h3.textContent = 'پرداخت رد شد';
+        var p = document.createElement('p');
+        var strong = document.createElement('strong');
+        strong.textContent = 'دلیل: ';
+        p.appendChild(strong);
+        var reasonText = document.createElement('span');
+        reasonText.textContent = data.rejected_reason;
+        p.appendChild(reasonText);
+        var btn = document.createElement('button');
+        btn.id = 'newPayButton';
+        btn.className = 'btn btn-primary';
+        btn.textContent = 'ارسال مجدد رسید';
+        btn.addEventListener('click', function() { modal.style.display = 'flex'; });
+        chargeCard.appendChild(h3);
+        chargeCard.appendChild(p);
+        chargeCard.appendChild(btn);
+      }
+    }
+    async function loadPage(page) {
+      var csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+      var res = await fetch('/shop/dashboard?page=' + page + '&limit=5', { headers: { 'X-CSRF-Token': csrf, 'Accept': 'application/json' } });
+      if (!res.ok) return;
+      var data = await res.json();
+      updateTransactionTable(data);
+      shopConfig.currentPage = data.currentPage;
+      shopConfig.totalPages = data.totalPages;
+    }
+    function updateTransactionTable(data) {
+      var container = document.getElementById('transactionContainer');
+      if (!data.transactions.length) { container.innerHTML = '<p>تراکنشی یافت نشد.</p>'; return; }
+      var html = '<table><thead><tr><th>ماه شارژ</th><th>مبلغ</th><th>وضعیت</th><th>تاریخ پرداخت</th><th>کد پیگیری</th></tr></thead><tbody>';
+      data.transactions.forEach(function(t) {
+        var bc = 'badge-unpaid', bt = 'پرداخت نشده';
+        if (t.status === 'paid') { bc = 'badge-paid'; bt = 'پرداخت شده'; }
+        else if (t.status === 'pending') { bc = 'badge-pending'; bt = 'در انتظار تأیید'; }
+        html += '<tr><td>' + new Date(t.charge_month).toLocaleString('fa-IR', { month: 'long', year: 'numeric' }) + '</td><td>' + Number(t.amount).toLocaleString('fa-IR') + ' تومان</td><td><span class="badge ' + bc + '">' + bt + '</span></td><td>' + (t.paid_at ? new Date(t.paid_at).toLocaleDateString('fa-IR') : '-') + '</td><td>' + (t.transaction_code || '-') + '</td></tr>';
+      });
+      html += '</tbody></table><div id="pagination"><button id="prevBtn" class="btn btn-secondary" ' + (data.currentPage <= 1 ? 'disabled' : '') + '>قبلی</button><span id="pageInfo">صفحه ' + data.currentPage + ' از ' + data.totalPages + '</span><button id="nextBtn" class="btn btn-secondary" ' + (data.currentPage >= data.totalPages ? 'disabled' : '') + '>بعدی</button></div>';
+      container.innerHTML = html;
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('logoutBtn').addEventListener('click', function() { logout(); });
+      modal = document.getElementById('uploadModal');
+      var payBtn = document.getElementById('payButton');
+      if (payBtn) payBtn.addEventListener('click', function() { modal.style.display = 'flex'; });
+      document.getElementById('cancelUploadBtn').addEventListener('click', function() { modal.style.display = 'none'; });
+      window.addEventListener('click', function(e) { if (e.target === modal) modal.style.display = 'none'; });
+      document.getElementById('receiptFile').addEventListener('change', function(e) {
+        var file = e.target.files[0];
+        var errDiv = document.getElementById('uploadError');
+        errDiv.textContent = '';
+        if (!file) return;
+        if (!['image/jpeg','image/png'].includes(file.type)) { errDiv.textContent = 'فقط JPG و PNG'; e.target.value=''; return; }
+        if (file.size > 2*1024*1024) { errDiv.textContent = 'حداکثر ۲MB'; e.target.value=''; return; }
+        var reader = new FileReader();
+        reader.onload = function(ev) { var img = document.getElementById('previewImage'); img.src = ev.target.result; img.classList.remove('preview-image-hidden'); img.classList.add('preview-image-visible'); };
+        reader.readAsDataURL(file);
+      });
+      document.getElementById('submitReceiptBtn').addEventListener('click', async function() {
+        var file = document.getElementById('receiptFile').files[0];
+        var errDiv = document.getElementById('uploadError');
+        if (!file) { errDiv.textContent = 'فایلی انتخاب نشده'; return; }
+        var fd = new FormData(); fd.append('receipt', file);
+        var csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        var res = await fetch('/shop/upload-receipt', { method:'POST', headers:{ 'X-CSRF-Token':csrf }, body:fd });
+        var data = await res.json();
+        if (res.ok) {
+          modal.style.display='none';
+          alert('رسید با موفقیت بارگذاری شد');
+          var chargeCard = document.getElementById('chargeCard');
+          chargeCard.className = 'charge-card card-orange';
+          chargeCard.innerHTML = '<h3>در انتظار تأیید</h3><p>رسید شما ارسال شده است. منتظر تأیید مدیریت باشید.</p>';
+          startPolling();
+        } else { errDiv.textContent = data.message || 'خطا'; }
+      });
+      if (shopConfig.currentCharge && shopConfig.currentCharge.status === 'pending') startPolling();
+    });
+  </script>
+</body>
+</html>
